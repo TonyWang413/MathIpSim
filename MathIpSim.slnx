@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MathIpSim.Core/MathIpSim.Core.csproj" />
+    <Project Path="src/MathIpSim.Daemon/MathIpSim.Daemon.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MathIpSim.Tests/MathIpSim.Tests.csproj" />
+  </Folder>
+</Solution>

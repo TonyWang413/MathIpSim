@@ -1,0 +1,19 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Ensure shell scripts always use LF line endings on checkout
+# This prevents executable issues on macOS/Linux if checked out on Windows
+*.sh text eol=lf
+
+# Ensure Windows batch files always use CRLF line endings on checkout
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Denote all binary files to prevent git from attempting line ending normalization
+*.dll binary
+*.exe binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

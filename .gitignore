@@ -1,0 +1,37 @@
+# .gitignore for MathIpSim project (C# and C/C++)
+
+# --- OS Specific Files ---
+.DS_Store
+Thumbs.db
+
+# --- C# / .NET Build Artifacts ---
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+*.user
+*.userprefs
+*.suo
+*.sln.docstates
+
+# --- C/C++ Compiled Artifacts ---
+*.o
+*.obj
+*.pdb
+*.ilk
+*.exe
+c_demo
+c_demo.exe
+c_test_runner
+c_test_runner.exe
+
+# --- IDE Settings ---
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+
+# --- Local Agent State & Logs ---
+.agents/
+.gemini/
