@@ -1,14 +1,13 @@
 # Vibe State
 
 ## Current Goal
-Downgrade all `.net10` projects to target `.net8` for broader runtime compatibility, and convert `MathIpSim.slnx` back to a standard `MathIpSim.sln` for Visual Studio 2022 compatibility.
+Fix execution syntax errors and enhance compiler detection in `src/Clients/MathIpSim.Client.C/Windows/build.bat` under Windows.
 
 ## Active Plan
-- [x] Task 1: Re-create C# Projects and Solution Structure <!-- id: RestructureProjects -->
-- ... (Tasks 2-11 completed/restructured) ...
-- [x] Task 12: Downgrade TargetFramework in csproj files to net8.0 <!-- id: DowngradeNet8 -->
-- [x] Task 13: Create standard MathIpSim.sln solution and delete MathIpSim.slnx <!-- id: CreateSln -->
-- [x] Task 14: Run dotnet test to verify successful compilation under net8.0 <!-- id: TestNet8 -->
+- [x] Task 1: Create/Update spec document `docs/specs/2026-07-06-fix-c-client-build-bat.md` <!-- id: CreateSpec -->
+- [x] Task 2: Update implementation plan `docs/plans/2026-07-06-fix-c-client-build-bat-plan.md` <!-- id: CreatePlan -->
+- [x] Task 3: Restructure `build.bat` with Visual Studio auto-detection <!-- id: RestructureBuildBat -->
+- [x] Task 4: Verify syntax and execution/compilation of `build.bat` <!-- id: VerifyBuildBat -->
 
 ## Next Immediate Step
 None. All tasks are completed and verified successfully.
