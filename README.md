@@ -87,7 +87,7 @@ For complete technical specifications of the simulated hardware IP block—inclu
 
 ## Prerequisites
 
-- **.NET 10.0 SDK** (Installed on macOS/Windows)
+- **.NET 8.0 SDK** (or higher, installed on macOS/Windows)
 - **C Compiler**:
   - *macOS*: `clang` (via Xcode Command Line Tools)
   - *Windows*: MSVC (`cl.exe`) via Visual Studio, or MinGW (`gcc.exe`)
