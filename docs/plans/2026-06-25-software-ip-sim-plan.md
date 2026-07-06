@@ -1,4 +1,7 @@
-# Implementation Plan: Pure-Software Math IP Simulator
+# [SUPERSEDED] Implementation Plan: Pure-Software Math IP Simulator
+
+> [!WARNING]
+> **此版本計畫已廢棄 (SUPERSEDED by July 6 refactor)**。最新的實施與驗證計畫請參閱：[2026-07-06-restructured-ip-sim-plan.md](2026-07-06-restructured-ip-sim-plan.md)。
 
 This plan breaks down the approved specification ([2026-06-25-software-ip-sim.md](../specs/2026-06-25-software-ip-sim.md)) into bite-sized tasks.
 We will follow **Test-Driven Development (TDD)** for each task.

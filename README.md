@@ -6,12 +6,18 @@ It is designed using a **Shared Memory Daemon** architecture to achieve process 
 
 ---
 
+
 ## Architecture Overview
+
+This simulator is designed to support two distinct operational modes depending on your integration needs:
+
+### 1. IPC Mode (Scenario 1: Multiprocess, Fault-Isolated, Cross-Language)
+In this mode, client applications (written in C#, C, or other languages) communicate with a background **C# Daemon Process** via **Shared Memory (Memory Mapped Files)**. If the simulator crashes or runs into exception states, the client application is completely isolated and unaffected.
 
 ```
  ┌───────────────────────────────────┐        ┌───────────────────────────────────┐
- │       Host Process (Caller)       │        │     Daemon Process (C# Engine)    │
- │   (C# Application or C Program)   │        │     (Runs core math IP logic)     │
+ │       Client Process (Caller)     │        │     Daemon Process (C# Engine)    │
+ │    (C/C# Client Application)      │        │     (Runs core math IP logic)     │
  └─────────────────┬─────────────────┘        └─────────────────┬─────────────────┘
                    │                                            │
   1. Write Inputs  │                                            │ 3. Detects GO=1
@@ -23,17 +29,59 @@ It is designed using a **Shared Memory Daemon** architecture to achieve process 
                    ▼
 ```
 
-### Shared Memory Layout
-- **Data Space (`0x20000` ~ `0x30000`)**: Stores input arrays `a`, `b` (at offsets `A_ADDRESS`, `B_ADDRESS`) and outputs `c` (at offset `C_ADDRESS`).
-- **Register Space (`0x39000` ~ `0x390FF`)**: Maps control/status parameters:
-  - `0x39000`: `A_ADDRESS` (32-bit uint offset)
-  - `0x39004`: `B_ADDRESS` (32-bit uint offset)
-  - `0x39008`: `C_ADDRESS` (32-bit uint offset)
-  - `0x3900C`: `DATA_LEN` (32-bit uint count)
-  - `0x39010`: `GO` (32-bit uint trigger, write `1` to start, engine clears it to `0` when done)
-  - `0x39014`: `STATUS` (32-bit uint status: **Bit 0** = Division by zero occurred, **Bit 1** = Calculation overflow occurred and saturated)
+#### Class & Process Relationship Diagram (IPC Mode)
+```mermaid
+flowchart TD
+    subgraph ClientProcess ["Client Application Process"]
+        ClientApp["MathIpSim.Client.CSharp.Ipc (Console App)"]
+        MathIpDriver["MathIpDriver (Driver SDK)"]
+        ClientApp -->|Instantiates & calls| MathIpDriver
+    end
 
-For detailed specifications, see [docs/specs/2026-06-25-software-ip-sim.md](docs/specs/2026-06-25-software-ip-sim.md).
+    subgraph DaemonProcess ["Daemon Simulator Process"]
+        SimulatorDaemon["MathIpSim.Daemon (Console App)"]
+        MathIpEngine["MathIpEngine (Simulator Core)"]
+        SimulatorDaemon -->|Instantiates & polls| MathIpEngine
+    end
+
+    SharedMemoryFactory["SharedMemoryFactory (Utility)"]
+
+    MathIpDriver -.->|Opens MMF| SharedMemoryFactory
+    MathIpEngine -.->|Creates MMF| SharedMemoryFactory
+```
+
+### 2. Direct Mode (Scenario 2: Single-Process, High-Performance, C# Only)
+In this mode, a C# client directly instantiates and executes the core math IP logic inside its own process namespace. Communication overhead is completely eliminated by calling standard C# APIs without any shared memory mapping.
+
+```
+ ┌──────────────────────────────────────────────────────────────────┐
+ │                     Client Process (C# Caller)                   │
+ │                                                                  │
+ │    ┌───────────────────────────┐       ┌────────────────────┐    │
+ │    │  Client Application Code  ├──────►│  MathIpEngine API  │    │
+ │    │                           │ (Call)│  (In-Memory Math)  │    │
+ │    └───────────────────────────┘       └────────────────────┘    │
+ └──────────────────────────────────────────────────────────────────┘
+```
+
+#### Class & Process Relationship Diagram (Direct Mode)
+```mermaid
+flowchart TD
+    subgraph ClientProcess ["Client Application Process"]
+        ClientApp["MathIpSim.Client.CSharp.Direct (Console App)"]
+        MathIpEngine["MathIpEngine (Simulator Core)"]
+        ClientApp -->|Instantiates & calls directly| MathIpEngine
+    end
+
+    SharedMemoryFactory["SharedMemoryFactory (Utility)"]
+    MathIpEngine -.->|Creates MMF| SharedMemoryFactory
+```
+
+## IP Specifications & Memory Layout
+
+For complete technical specifications of the simulated hardware IP block—including its **Shared Memory Space Layout**, **32-bit Register Mapping (Base: `0x39000`)**, **Input/Output Vector Memory Offsets**, and **16-bit Saturation/Error Rules**—please refer to the:
+
+👉 **[Pure-Software Math IP Specifications Document](docs/specs/2026-07-06-restructured-ip-sim.md)**
 
 ---
 
@@ -48,27 +96,28 @@ For detailed specifications, see [docs/specs/2026-06-25-software-ip-sim.md](docs
 
 ## Directory Structure
 
-- [src/MathIpSim.Core/](src/MathIpSim.Core/): Core C# Library containing the math engine and the safe `MathIpDriver`.
-- [src/MathIpSim.Daemon/](src/MathIpSim.Daemon/): C# Console App hosting the shared memory and the engine runner loop.
-- [src/MathIpSim.CClient/macOS/](src/MathIpSim.CClient/macOS/): macOS-specific C driver (`math_ip_driver`) and build script.
-- [src/MathIpSim.CClient/Windows/](src/MathIpSim.CClient/Windows/): Windows-specific C driver (`math_ip_driver`) and build script.
+- [src/Simulators/MathIpSim.Simulator/](src/Simulators/MathIpSim.Simulator/): C# Class Library containing the core math simulation engine and shared memory factory.
+- [src/Simulators/MathIpSim.Daemon/](src/Simulators/MathIpSim.Daemon/): C# Console App hosting the background daemon polling runner loop.
+- [src/Clients/MathIpSim.Client.CSharp/](src/Clients/MathIpSim.Client.CSharp/): C# Client Driver SDK Library.
+- [src/Clients/MathIpSim.Client.C/macOS/](src/Clients/MathIpSim.Client.C/macOS/): macOS-specific C driver SDK and demo script.
+- [src/Clients/MathIpSim.Client.C/Windows/](src/Clients/MathIpSim.Client.C/Windows/): Windows-specific C driver SDK and demo batch file.
 - [tests/](tests/): C# Unit/Integration tests and C-specific automated tests.
 
 ---
 
-## Scenario 1: C# Direct calling
+## Scenario 1: C# IPC calling (via Daemon)
 
-In this scenario, a C# client directly consumes the simulated IP using the safe `MathIpDriver`.
+In this scenario, a C# client connects to the running Simulator Daemon using the safe `MathIpDriver` over shared memory.
 
-### 1. Build
-Build the core library from the root directory:
+### 1. Build and Run
+With the Simulator Daemon running in the background, run the IPC client:
 ```bash
-dotnet build src/MathIpSim.Core/MathIpSim.Core.csproj
+dotnet run --project src/Clients/MathIpSim.Client.CSharp.Ipc/MathIpSim.Client.CSharp.Ipc.csproj
 ```
 
 ### 2. Execution Code Example
 ```csharp
-using MathIpSim.Core;
+using MathIpSim.Client.CSharp;
 
 // 1. Instantiate the driver
 using (var driver = new MathIpDriver())
@@ -109,20 +158,54 @@ using (var driver = new MathIpDriver())
 
 ---
 
-## Scenario 2: macOS C Integration
+## Scenario 2: C# Direct In-Process calling
 
-In this scenario, a macOS C program calls the C# IP engine.
+In this scenario, a C# application consumes the `MathIpEngine` directly in its own process, requiring no external processes or daemons.
+
+### 1. Build and Run
+Run the direct in-process calling client:
+```bash
+dotnet run --project src/Clients/MathIpSim.Client.CSharp.Direct/MathIpSim.Client.CSharp.Direct.csproj
+```
+
+### 2. Execution Code Example
+```csharp
+using MathIpSim.Simulator;
+
+// 1. Instantiate the engine directly
+using (var engine = new MathIpEngine())
+{
+    short[] aData = { 1, 2, 3 };
+    short[] bData = { 4, 5, 6 };
+
+    // 2. Write inputs using high-level API (no register manipulation needed)
+    engine.WriteInputs(aData, bData);
+
+    // 3. Execute math synchronously in-process
+    engine.Execute();
+
+    // 4. Read outputs
+    short[] results = engine.ReadOutputs();
+    uint status = engine.GetStatus();
+}
+```
+
+---
+
+## Scenario 3: macOS C Integration
+
+In this scenario, a macOS C program calls the C# IP engine via the background Daemon.
 
 ### 1. Build and Run the C# Daemon (Server)
 Start the background Daemon to host the simulated hardware:
 ```bash
-dotnet run --project src/MathIpSim.Daemon/MathIpSim.Daemon.csproj
+dotnet run --project src/Simulators/MathIpSim.Daemon/MathIpSim.Daemon.csproj
 ```
 
 ### 2. Compile the macOS C Demo (Client)
 Open a new terminal window, navigate to the macOS client directory, and run the build script:
 ```bash
-cd src/MathIpSim.CClient/macOS
+cd src/Clients/MathIpSim.Client.C/macOS
 sh build.sh
 ```
 This compiles `math_ip_driver.c` and `main.c` into a native executable `c_demo`.
@@ -135,20 +218,20 @@ The program will connect to the C# Daemon via `/tmp/MathIpSharedMemory`, execute
 
 ---
 
-## Scenario 3: Windows C Integration
+## Scenario 4: Windows C Integration
 
-In this scenario, a Windows C program calls the C# IP engine.
+In this scenario, a Windows C program calls the C# IP engine via the background Daemon.
 
 ### 1. Build and Run the C# Daemon (Server)
 Open Windows Command Prompt/PowerShell and run:
 ```cmd
-dotnet run --project src/MathIpSim.Daemon/MathIpSim.Daemon.csproj
+dotnet run --project src/Simulators/MathIpSim.Daemon/MathIpSim.Daemon.csproj
 ```
 
 ### 2. Compile the Windows C Demo (Client)
 Open the **Developer Command Prompt for Visual Studio** (for MSVC `cl.exe`) or a command window with MinGW `gcc.exe` in the PATH. Navigate to the Windows client directory and execute the build batch file:
 ```cmd
-cd src\MathIpSim.CClient\Windows
+cd src\Clients\MathIpSim.Client.C\Windows
 build.bat
 ```
 This compiles `math_ip_driver.c` and `main.c` into `c_demo.exe`.
@@ -172,7 +255,7 @@ dotnet test
 ### Run C Language Integration Test (macOS/Unix)
 With the C# Daemon running in the background, compile and run the automated C assertions:
 ```bash
-clang tests/c_test/main.c src/MathIpSim.CClient/macOS/math_ip_driver.c -I src/MathIpSim.CClient/macOS/ -o tests/c_test/c_test_runner
+clang tests/c_test/main.c src/Clients/MathIpSim.Client.C/macOS/math_ip_driver.c -I src/Clients/MathIpSim.Client.C/macOS/ -o tests/c_test/c_test_runner
 ./tests/c_test/c_test_runner
 ```
 If successful, it will output `All assertions PASSED successfully!`.

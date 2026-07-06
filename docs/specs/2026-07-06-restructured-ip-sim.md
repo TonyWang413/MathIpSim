@@ -1,11 +1,8 @@
-# [SUPERSEDED] Specification: Pure-Software Math IP Simulator
+# Specification: Restructured Pure-Software Math IP Simulator
 
-> [!WARNING]
-> **此版本規格已廢棄 (SUPERSEDED by July 6 refactor)**。最新的架構與設計規格請參閱：[2026-07-06-restructured-ip-sim.md](2026-07-06-restructured-ip-sim.md)。
-
-**Date:** 2026-06-25  
-**Version:** 1.0  
-**Status:** SUPERSEDED (Obsolete)
+**Date:** 2026-07-06  
+**Version:** 2.0  
+**Status:** APPROVED
 
 ---
 
@@ -117,34 +114,102 @@ For each index $i$ from $0$ to $\text{DATA\_LEN} - 1$:
 
 ## 6. Host Integration Interfaces (Option A: Register Struct Overlay)
 
-By mapping a structured layout directly over the register space in the shared memory, host callers can read and write registers as simple fields of a struct.
+By mapping a structured layout directly over the register space in the shared memory, host callers and the simulator engine can read and write registers as simple fields.
 
-### A. C# Direct Call API
-For C# clients, we provide a driver class that maps the shared memory and exposes low-level API functions with **1-to-1 parity to the C API**. 
+### A. Shared Memory Factory (Internal Helper)
+A static cross-platform factory is used by both the Simulator and C# Client to instantiate the `MemoryMappedFile` instance under Windows and macOS.
 
-To ensure the C# caller code is **100% safe** (requiring **no** `unsafe` blocks in your application code), the registers are exposed as standard C# properties on the `MathIpDriver` instance. Under the hood, the driver handles memory mapping safely.
+```csharp
+public static class SharedMemoryFactory
+{
+    // Returns a platform-specific MemoryMappedFile instance
+    public static MemoryMappedFile CreateOrOpen(string name, long capacity);
+}
+```
+
+### B. Simulator Engine API (MathIpEngine)
+The simulator engine is an instantiable class running in the background Daemon process. It encapsulates the shared memory creation, register initialization, and core calculation logic. It also supports direct in-process calling via helper methods and low-level register/data properties.
 
 ```csharp
 using System;
+using System.IO.MemoryMappedFiles;
+
+public class MathIpEngine : IDisposable
+{
+    public string SharedMemoryName { get; }
+    public long Capacity { get; }
+
+    // Default constructor (uses default shmName "MathIpSharedMemory" and 256KB capacity)
+    public MathIpEngine();
+
+    // Parameterized constructor creates custom shared memory segment
+    public MathIpEngine(string shmName, long capacity);
+
+    // Checks if the client has triggered execution (GO == 1)
+    public bool IsGoTriggered();
+
+    // Executes mathematical computation on the mapped segment (synchronously)
+    public void Execute();
+
+    // Low-Level Helper: Writes raw data to a memory offset relative to Data Space Base (0x20000)
+    public bool WriteData(uint offset, short[] data, uint len);
+
+    // Low-Level Helper: Reads raw data from a memory offset relative to Data Space Base (0x20000)
+    public bool ReadData(uint offset, short[] dest, uint len);
+
+    // High-Level Helper: Writes inputs to default offsets in the shared memory segment
+    public void WriteInputs(short[] a, short[] b);
+
+    // High-Level Helper: Reads results from default offsets in the shared memory segment
+    public short[] ReadOutputs();
+
+    // High-Level Helper: Reads the STATUS register
+    public uint GetStatus();
+
+    // --- Safe Register Access Properties (for Direct API Mode parity with Driver) ---
+    public uint A_ADDRESS { get; set; }
+    public uint B_ADDRESS { get; set; }
+    public uint C_ADDRESS { get; set; }
+    public uint DATA_LEN  { get; set; }
+    public uint GO        { get; set; }
+    public uint STATUS    { get; }
+
+    // Disposes resources (accessor and memory-mapped file)
+    public void Dispose();
+}
+```
+
+### C. C# Client Driver API (MathIpDriver)
+For C# client applications, we provide a driver class that maps the shared memory segment and exposes safe C# properties. It requires **no** `unsafe` code blocks.
+
+```csharp
+using System;
+using System.IO.MemoryMappedFiles;
 
 public class MathIpDriver : IDisposable
 {
-    // --- Low-Level API (Safe, no unsafe block needed by the caller) ---
-    
-    // Initialize shared memory mapping
+    // Initialize shared memory mapping (opens existing segment)
     public bool Init(string shmName);
 
-    // Write input data to a memory offset
+    // Write input data array to a memory offset relative to Data Space Base (0x20000)
     public bool WriteData(uint offset, short[] data, uint len);
 
-    // Read output data from a memory offset
+    // Read output data array from a memory offset relative to Data Space Base (0x20000)
     public bool ReadData(uint offset, short[] dest, uint len);
+
+    // High-Level Helper: Writes inputs to default offsets in the shared memory segment
+    public void WriteInputs(short[] a, short[] b);
+
+    // High-Level Helper: Triggers calculation and polls GO register until it becomes 0 (with timeout)
+    public void Execute();
+
+    // High-Level Helper: Reads results from default offsets in the shared memory segment
+    public short[] ReadOutputs();
 
     // Cleanup mapping
     public void Cleanup();
 
     // --- Safe Register Access Properties ---
-    // These properties directly read/write the shared memory registers in real time
     public uint A_ADDRESS { get; set; }
     public uint B_ADDRESS { get; set; }
     public uint C_ADDRESS { get; set; }
@@ -158,11 +223,12 @@ public class MathIpDriver : IDisposable
 
 
 
+
 ### B. C Driver API (macOS / Windows Split)
 The C language implementation is divided into platform-specific directories to keep compilation clean and avoid `#ifdef` macros in the source files. Both platforms share the same header declaration but implement them natively:
 
-- **macOS**: Located in `src/MathIpSim.CClient/macOS/` (POSIX `mmap` backing file-based)
-- **Windows**: Located in `src/MathIpSim.CClient/Windows/` (Win32 Named Shared Memory)
+- **macOS**: Located in `src/MathIpSim.Client.C/macOS/` (POSIX `mmap` backing file-based)
+- **Windows**: Located in `src/MathIpSim.Client.C/Windows/` (Win32 Named Shared Memory)
 
 #### Header File (`math_ip_client.h`)
 ```c
@@ -207,16 +273,28 @@ void math_ip_cleanup(void);
 #### Compilation & Build Scripts
 Each platform directory includes a helper script to build the C Demo runner (`c_demo`):
 
-* **macOS (`src/MathIpSim.CClient/macOS/build.sh`)**:
+* **macOS (`src/MathIpSim.Client.C/macOS/build.sh`)**:
   Compiles the demo using `clang` by running:
   ```bash
   sh build.sh
   ```
-* **Windows (`src/MathIpSim.CClient/Windows/build.bat`)**:
+* **Windows (`src/MathIpSim.Client.C/Windows/build.bat`)**:
   Detects MSVC (`cl.exe`) or MinGW (`gcc.exe`) in `PATH` and compiles by double-clicking the batch file or running:
   ```cmd
   build.bat
   ```
+
+
+## 6. Future Multi-IP Scaling Architecture
+
+In a production environment containing multiple hardware IP simulators (e.g., `MathIp`, `CryptoIp`, `DspIp`):
+
+1. **Shared memory abstraction**:
+   To avoid duplicate platform-specific `MemoryMappedFile` creation logic across different simulator and driver projects, a general shared assembly (e.g., `HardwareSim.Common` or `HardwareSim.Shared`) should be created.
+2. **Decoupled compilation**:
+   The cross-platform `SharedMemoryFactory` class should be moved to this common library. This allows all IP simulators and client libraries to reference a single utility assembly rather than depending on specific simulator projects or duplicating code files.
+3. **Current design approach**:
+   For this codebase, the core simulator code is placed in `MathIpSim.Simulator` which targets `.NET Standard 2.0`. The executable host is isolated in `MathIpSim.Daemon` (targeting `.NET 10.0`). This allows the C# client library `MathIpSim.Client.CSharp` (also `.NET Standard 2.0`) to directly reference `MathIpSim.Simulator` with no framework mismatch or compile hacks.
 
 
 

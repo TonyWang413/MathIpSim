@@ -1,16 +1,14 @@
 # Vibe State
 
 ## Current Goal
-Refactor C library naming to `math_ip_driver` and implement macOS/Windows C demo runners alongside C test runner.
+Merge `MathIpSim.Client.CSharp` driver library directly into the `MathIpSim.Client.CSharp.Ipc` console project, and delete the intermediate class library to streamline the project count.
 
 ## Active Plan
-- [x] Rename C client to C driver (macOS & Windows) <!-- id: RenameDriver -->
-- [x] Create macOS and Windows C Demo main.c runners <!-- id: CreateDemos -->
-- [x] Update C Test runner with driver naming <!-- id: UpdateTestRunner -->
-- [x] Update Specification document <!-- id: UpdateSpec -->
-- [x] Generate build scripts for macOS and Windows C clients <!-- id: GenerateScripts -->
-- [x] Create comprehensive project README.md <!-- id: CreateReadme -->
-- [x] Generate .gitignore and .gitattributes <!-- id: CreateGitConfigs -->
+- [x] Task 1: Re-create C# Projects and Solution Structure <!-- id: RestructureProjects -->
+- ... (Tasks 2-11 completed/restructured) ...
+- [ ] Task 12: Move MathIpDriver.cs to CSharp.Ipc and delete CSharp library project <!-- id: MergeDriver -->
+- [ ] Task 13: Update project references, namespaces, and solution files <!-- id: ResolveMergeReferences -->
+- [ ] Task 14: Verify C# unit and integration tests under the new structure <!-- id: TestMerge -->
 
 ## Next Immediate Step
-Final verification and presentation of results to the user.
+Move `MathIpDriver.cs` to `src/Clients/MathIpSim.Client.CSharp.Ipc/` and delete the `src/Clients/MathIpSim.Client.CSharp/` directory.

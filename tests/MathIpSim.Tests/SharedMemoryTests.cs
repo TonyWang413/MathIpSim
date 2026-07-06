@@ -1,5 +1,8 @@
 using Xunit;
-using MathIpSim.Core;
+using MathIpSim.Simulator;
+using System;
+using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 
 namespace MathIpSim.Tests;
@@ -7,40 +10,34 @@ namespace MathIpSim.Tests;
 public class SharedMemoryTests
 {
     [Fact]
-    public unsafe void Test_SharedMemoryWriteAndRead_Success()
+    public void Test_SharedMemoryWriteAndRead_Success()
     {
         string shmName = "TestMathIpSharedMemory_" + Guid.NewGuid().ToString("N");
         long capacity = 1024;
 
-        // 1. Create first wrapper and write data
-        using (var shm1 = new SharedMemoryWrapper(shmName, capacity))
+        // 1. Create first MemoryMappedFile and view accessor, then write data
+        using (var mmf1 = SharedMemoryFactory.CreateOrOpen(shmName, capacity))
+        using (var accessor1 = mmf1.CreateViewAccessor(0, capacity))
         {
-            Assert.True(shm1.Pointer != null);
+            accessor1.Write(0, (byte)0xAA);
+            accessor1.Write(100, (byte)0xBB);
+            accessor1.Write(1023, (byte)0xCC);
 
-            // Write test bytes
-            byte* ptr1 = shm1.Pointer;
-            ptr1[0] = 0xAA;
-            ptr1[100] = 0xBB;
-            ptr1[1023] = 0xCC;
-
-            // 2. Create second wrapper mapping to the same name
-            using (var shm2 = new SharedMemoryWrapper(shmName, capacity))
+            // 2. Create second mapping to the same name
+            using (var mmf2 = SharedMemoryFactory.CreateOrOpen(shmName, capacity))
+            using (var accessor2 = mmf2.CreateViewAccessor(0, capacity))
             {
-                Assert.True(shm2.Pointer != null);
-
-                byte* ptr2 = shm2.Pointer;
-                
                 // Assert values match across mappings
-                Assert.Equal(0xAA, ptr2[0]);
-                Assert.Equal(0xBB, ptr2[100]);
-                Assert.Equal(0xCC, ptr2[1023]);
+                Assert.Equal((byte)0xAA, accessor2.ReadByte(0));
+                Assert.Equal((byte)0xBB, accessor2.ReadByte(100));
+                Assert.Equal((byte)0xCC, accessor2.ReadByte(1023));
 
-                // Modify in shm2
-                ptr2[500] = 0xDD;
+                // Modify in accessor2
+                accessor2.Write(500, (byte)0xDD);
             }
 
-            // Assert change is visible back in shm1
-            Assert.Equal(0xDD, ptr1[500]);
+            // Assert change is visible back in accessor1
+            Assert.Equal((byte)0xDD, accessor1.ReadByte(500));
         }
 
         // Cleanup the backing file on non-Windows platforms

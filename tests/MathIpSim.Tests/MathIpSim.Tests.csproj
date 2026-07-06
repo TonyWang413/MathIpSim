@@ -17,7 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MathIpSim.Core\MathIpSim.Core.csproj" />
+    <ProjectReference Include="..\..\src\Simulators\MathIpSim.Simulator\MathIpSim.Simulator.csproj" />
+    <ProjectReference Include="..\..\src\Simulators\MathIpSim.Daemon\MathIpSim.Daemon.csproj" />
+    <ProjectReference Include="..\..\src\Clients\MathIpSim.Client.CSharp.Ipc\MathIpSim.Client.CSharp.Ipc.csproj" />
+    <ProjectReference Include="..\..\src\Clients\MathIpSim.Client.CSharp.Direct\MathIpSim.Client.CSharp.Direct.csproj" />
   </ItemGroup>
 
 </Project>

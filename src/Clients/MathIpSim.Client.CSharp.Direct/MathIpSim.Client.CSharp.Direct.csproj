@@ -5,11 +5,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MathIpSim.Core\MathIpSim.Core.csproj" />
+    <ProjectReference Include="..\..\Simulators\MathIpSim.Simulator\MathIpSim.Simulator.csproj" />
   </ItemGroup>
 
 </Project>

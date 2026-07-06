@@ -1,16 +1,19 @@
 using System;
-using System.IO;
+using System.IO.MemoryMappedFiles;
+using MathIpSim.Simulator;
 
-namespace MathIpSim.Core
+namespace MathIpSim.Client.CSharp.Ipc
 {
-    public unsafe class MathIpDriver : IDisposable
+    public class MathIpDriver : IDisposable
     {
-        private SharedMemoryWrapper _shm;
+        private MemoryMappedFile? _mmf;
+        private MemoryMappedViewAccessor? _accessor;
+
         private const int ShmSize = 0x40000; // 256 KB
         private const int RegBase = 0x39000;
         private const int DataBase = 0x20000;
 
-        // Register Offsets
+        // Register offsets
         private const int OffsetAAddress = RegBase + 0;
         private const int OffsetBAddress = RegBase + 4;
         private const int OffsetCAddress = RegBase + 8;
@@ -23,65 +26,98 @@ namespace MathIpSim.Core
             try
             {
                 Cleanup();
-                _shm = new SharedMemoryWrapper(shmName, ShmSize);
+                _mmf = SharedMemoryFactory.CreateOrOpen(shmName, ShmSize);
+                _accessor = _mmf.CreateViewAccessor(0, ShmSize, MemoryMappedFileAccess.ReadWrite);
                 return true;
             }
             catch
             {
+                Cleanup();
                 return false;
             }
         }
 
         public bool WriteData(uint offset, short[] data, uint len)
         {
-            if (_shm == null || _shm.Pointer == null || data == null) return false;
+            if (_accessor == null || data == null) return false;
 
-            // Boundary check: ensure we don't write past Data Space (64 KB)
-            // Data Space is 0x20000 to 0x30000. Maximum offset is 64KB (0x10000 bytes).
-            long byteOffset = DataBase + offset;
+            // Boundary check: Data space is 64 KB (0x10000 bytes).
             long bytesToWrite = len * sizeof(short);
             if (offset + bytesToWrite > 0x10000)
             {
                 return false; // Out of bounds
             }
 
-            unsafe
-            {
-                short* dest = (short*)(_shm.Pointer + byteOffset);
-                for (int i = 0; i < len; i++)
-                {
-                    dest[i] = data[i];
-                }
-            }
+            long byteOffset = DataBase + offset;
+            _accessor.WriteArray(byteOffset, data, 0, (int)len);
             return true;
         }
 
         public bool ReadData(uint offset, short[] dest, uint len)
         {
-            if (_shm == null || _shm.Pointer == null || dest == null) return false;
+            if (_accessor == null || dest == null) return false;
 
-            long byteOffset = DataBase + offset;
             long bytesToRead = len * sizeof(short);
             if (offset + bytesToRead > 0x10000)
             {
                 return false; // Out of bounds
             }
 
-            unsafe
-            {
-                short* src = (short*)(_shm.Pointer + byteOffset);
-                for (int i = 0; i < len; i++)
-                {
-                    dest[i] = src[i];
-                }
-            }
+            long byteOffset = DataBase + offset;
+            _accessor.ReadArray(byteOffset, dest, 0, (int)len);
             return true;
         }
 
         public void Cleanup()
         {
-            _shm?.Dispose();
-            _shm = null;
+            _accessor?.Dispose();
+            _accessor = null;
+            _mmf?.Dispose();
+            _mmf = null;
+        }
+
+        public void WriteInputs(short[] a, short[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length)
+            {
+                throw new ArgumentException("Inputs must be non-null and have identical lengths.");
+            }
+
+            uint len = (uint)a.Length;
+            A_ADDRESS = 0x1000;
+            B_ADDRESS = 0x2000;
+            C_ADDRESS = 0x3000;
+            DATA_LEN = len;
+
+            WriteData(A_ADDRESS, a, len);
+            WriteData(B_ADDRESS, b, len);
+        }
+
+        public void Execute()
+        {
+            GO = 1;
+
+            // Poll GO until it becomes 0 (cleared by hardware daemon)
+            int retries = 0;
+            const int maxRetries = 2000; // 2 seconds safety timeout
+            while (GO == 1 && retries < maxRetries)
+            {
+                System.Threading.Thread.Sleep(1);
+                retries++;
+            }
+
+            if (GO == 1)
+            {
+                throw new TimeoutException("Timeout waiting for Simulator Daemon to complete calculation (GO register not cleared).");
+            }
+        }
+
+        public short[] ReadOutputs()
+        {
+            uint len = DATA_LEN;
+            short[] dest = new short[len * 4];
+            ReadData(C_ADDRESS, dest, len * 4);
+            return dest;
         }
 
         // --- Safe Register Access Properties ---
@@ -121,29 +157,22 @@ namespace MathIpSim.Core
             get => GetRegisterValue(OffsetStatus);
         }
 
-        // --- Helpers to read/write registers ---
         private uint GetRegisterValue(int offset)
         {
-            if (_shm == null || _shm.Pointer == null)
+            if (_accessor == null)
             {
                 throw new InvalidOperationException("Driver not initialized. Call Init() first.");
             }
-            unsafe
-            {
-                return *(uint*)(_shm.Pointer + offset);
-            }
+            return _accessor.ReadUInt32(offset);
         }
 
         private void SetRegisterValue(int offset, uint value)
         {
-            if (_shm == null || _shm.Pointer == null)
+            if (_accessor == null)
             {
                 throw new InvalidOperationException("Driver not initialized. Call Init() first.");
             }
-            unsafe
-            {
-                *(uint*)(_shm.Pointer + offset) = value;
-            }
+            _accessor.Write(offset, value);
         }
 
         public void Dispose()

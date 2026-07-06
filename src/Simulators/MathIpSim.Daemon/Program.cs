@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using MathIpSim.Core;
+using MathIpSim.Simulator;
 
 namespace MathIpSim.Daemon
 {
@@ -9,11 +9,7 @@ namespace MathIpSim.Daemon
         private const string ShmName = "MathIpSharedMemory";
         private const int ShmSize = 0x40000; // 256 KB
 
-        private const int RegBase = 0x39000;
-        private const int OffsetGo = RegBase + 16;
-        private const int OffsetStatus = RegBase + 20;
-
-        static unsafe void Main(string[] args)
+        static void Main(string[] args)
         {
             Console.WriteLine("========================================");
             Console.WriteLine("       Math IP Daemon Simulator         ");
@@ -21,14 +17,8 @@ namespace MathIpSim.Daemon
 
             try
             {
-                using (var shm = new SharedMemoryWrapper(ShmName, ShmSize))
+                using (var engine = new MathIpEngine(ShmName, ShmSize))
                 {
-                    byte* ptr = shm.Pointer;
-
-                    // Initialize registers to 0
-                    *(uint*)(ptr + OffsetGo) = 0;
-                    *(uint*)(ptr + OffsetStatus) = 0;
-
                     Console.WriteLine($"[INFO] Shared Memory '{ShmName}' initialized at size {ShmSize} bytes.");
                     Console.WriteLine("[INFO] Unix Backing File (if macOS): /tmp/MathIpSharedMemory");
                     Console.WriteLine("[INFO] Registers mapped at offset 0x39000");
@@ -45,23 +35,17 @@ namespace MathIpSim.Daemon
 
                     while (running)
                     {
-                        // Check if GO is set to 1
-                        uint goValue = *(uint*)(ptr + OffsetGo);
-                        if ((goValue & 1) != 0)
+                        if (engine.IsGoTriggered())
                         {
-                            Console.WriteLine($"[IP] Trigger detected (GO = {goValue}). Executing calculation...");
-                            
+                            Console.WriteLine("[IP] Trigger detected (GO = 1). Executing calculation...");
                             try
                             {
-                                MathIpEngine.Execute(ptr);
-                                uint status = *(uint*)(ptr + OffsetStatus);
-                                Console.WriteLine($"[IP] Calculation completed. STATUS = 0x{status:X2}. GO cleared to 0.");
+                                engine.Execute();
+                                Console.WriteLine("[IP] Calculation completed. GO cleared to 0.");
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"[ERROR] Engine exception: {ex.Message}");
-                                // Clear GO to prevent infinite loop on failure
-                                *(uint*)(ptr + OffsetGo) = 0;
+                                Console.WriteLine($"[ERROR] Engine exception during execution: {ex.Message}");
                             }
                         }
 

@@ -1,7 +1,11 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/MathIpSim.Core/MathIpSim.Core.csproj" />
-    <Project Path="src/MathIpSim.Daemon/MathIpSim.Daemon.csproj" />
+  <Folder Name="/src/Clients/">
+    <Project Path="src/Clients/MathIpSim.Client.CSharp.Ipc/MathIpSim.Client.CSharp.Ipc.csproj" />
+    <Project Path="src/Clients/MathIpSim.Client.CSharp.Direct/MathIpSim.Client.CSharp.Direct.csproj" />
+  </Folder>
+  <Folder Name="/src/Simulators/">
+    <Project Path="src/Simulators/MathIpSim.Simulator/MathIpSim.Simulator.csproj" />
+    <Project Path="src/Simulators/MathIpSim.Daemon/MathIpSim.Daemon.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MathIpSim.Tests/MathIpSim.Tests.csproj" />
