@@ -92,7 +92,7 @@ All registers are aligned to 32-bit boundaries and represented as little-endian 
 
 ## 5. Mathematical Computation Rules
 
-For each index $i$ from $0$ to $\text{DATA\_LEN} - 1$:
+For each index $i$ from $0$ to `DATA_LEN` - 1:
 1. Read input $a_i$ from memory address `0x20000 + A_ADDRESS + i * 2` (signed 16-bit int, little-endian).
 2. Read input $b_i$ from memory address `0x20000 + B_ADDRESS + i * 2` (signed 16-bit int, little-endian).
 3. Compute:
